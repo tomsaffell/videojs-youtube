@@ -11,17 +11,32 @@
  */
 videojs.Youtube = videojs.MediaTechController.extend({
   init: function(player, options, ready){
+    
+    var source, match;
+    var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/; // Regex that parse the video ID for any YouTube URL
+    
     videojs.MediaTechController.call(this, player, options, ready);
     
+       
     this.features.fullscreenResize = true;
-    
     this.player_ = player;
     this.player_el_ = document.getElementById(this.player_.id());
 
-    // Regex that parse the video ID for any YouTube URL
-    var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    var match = player.options().src.match(regExp);
-
+    source = options.source;
+    
+    
+    
+    this.videoId = videojs.Youtube.getIdByUrl(source.src) || '';
+    
+    if ((vjs.IS_IOS || vjs.IS_ANDROID)){
+      this.player_.options({ytcontrols: true})
+    }
+    
+    /*try{
+      match = source.src.match(regExp);
+    }catch(err){
+    
+    }
     if (match && match[2].length == 11){
       this.videoId = match[2];
 
@@ -36,7 +51,7 @@ videojs.Youtube = videojs.MediaTechController.extend({
       }
     } else {
       this.videoId = '';
-    }
+    }*/
 
     this.id_ = this.player_.id() + '_youtube_api';
 
@@ -69,19 +84,21 @@ videojs.Youtube = videojs.MediaTechController.extend({
     };
     
     // Check if we have a playlist
-    var regExp = /[?&]list=([^#\&\?]+)/;
+    /*var regExp = /[?&]list=([^#\&\?]+)/;
+    try{
     var match = player.options().src.match(regExp);
+    }catch(err){}
     
     if (match != null && match.length > 1) {
       params.list = match[1];
-    }
+    }*/
     
     // If we are not on a server, don't specify the origin (it will crash)
     if (window.location.protocol != 'file:') {
       params.origin = window.location.origin;
     }
 
-    this.el_.src = 'http://www.youtube.com/embed/' + this.videoId + '?' + videojs.Youtube.makeQueryString(params);
+    this.el_.src = 'https://www.youtube.com/embed/' + this.videoId + '?' + videojs.Youtube.makeQueryString(params);
 
     if (this.player_.options().ytcontrols){
       // Hide the big play button when using YouTube controls
@@ -99,21 +116,37 @@ videojs.Youtube = videojs.MediaTechController.extend({
       // Load the YouTube API if it is the first YouTube video
       if(!videojs.Youtube.apiLoading){
         var tag = document.createElement('script');
-        tag.src = 'http://www.youtube.com/iframe_api';
+        tag.src = 'https://www.youtube.com/iframe_api';
         var firstScriptTag = document.getElementsByTagName('script')[0];
         firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
         videojs.Youtube.apiLoading = true;
       }
     }
+    
+    
   }
 });
 
 videojs.Youtube.prototype.dispose = function(){
+  
   this.ytplayer.destroy();
   videojs.MediaTechController.prototype.dispose.call(this);
 };
 
+
+videojs.Youtube.prototype.src = function(src){
+   
+   var id = videojs.Youtube.getIdByUrl(src); 
+   this.ytplayer.loadVideoById(id);
+};
+
+
 videojs.Youtube.prototype.play = function(){
+  
+  if ((vjs.IS_IOS || vjs.IS_ANDROID)){
+   return;
+  }
+  
   if (this.isReady_){ 
     this.ytplayer.playVideo(); 
   } else { 
@@ -181,6 +214,8 @@ videojs.Youtube.prototype.setMuted = function(muted) {
 };
 
 videojs.Youtube.prototype.onReady = function(){
+  
+  
   this.isReady_ = true;
   this.player_.trigger('techready');
 
@@ -195,12 +230,15 @@ videojs.Youtube.prototype.onReady = function(){
     this.ytplayer.playVideo();
   }
   
-  if (this.player_.options().ytcontrols){
+   this.stashedControls = this.player_.options().controls;
+    
+   
+  /*if (this.player_.options().ytcontrols){
     // Hide the VideoJS controls
     var p_options = this.player_.options();
     p_options.controls = false;
-    this.player_.options(p_options);
-  }
+    this.player_.options({controls: false});
+  }*/
 };
 
 videojs.Youtube.prototype.onStateChange = function(state){
@@ -327,6 +365,22 @@ videojs.Youtube.makeQueryString = function(args){
   return array.join('&');
 };
 
+
+videojs.Youtube.getIdByUrl = function (url){
+
+   var match, id,
+   regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/; // Regex that parse the video ID for any YouTube URL
+   
+   try{
+      match = url.match(regExp);
+   }catch(err){}
+   
+   if (match && match[2].length == 11){
+      id = match[2];
+   }
+   return id;
+};
+
 // Called when YouTube API is ready to be used
 window.onYouTubeIframeAPIReady = function(){
 
@@ -336,5 +390,4 @@ window.onYouTubeIframeAPIReady = function(){
   }
   videojs.Youtube.loadingQueue = [];
   videojs.Youtube.apiReady = true;
-}
-
+};
