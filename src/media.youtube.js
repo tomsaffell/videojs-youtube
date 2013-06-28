@@ -23,13 +23,12 @@ videojs.Youtube = videojs.MediaTechController.extend({
     this.player_el_ = document.getElementById(this.player_.id());
 
     source = options.source;
-    
-    
+       
     
     this.videoId = videojs.Youtube.getIdByUrl(source.src) || '';
     
     if ((vjs.IS_IOS || vjs.IS_ANDROID)){
-      this.player_.options({ytcontrols: true})
+      this.player_.options({ytcontrols: true});
     }
     
     /*try{
@@ -160,7 +159,10 @@ videojs.Youtube.prototype.play = function(){
   }
 };
 
-videojs.Youtube.prototype.pause = function(){ this.ytplayer.pauseVideo(); };
+videojs.Youtube.prototype.pause = function(){
+  
+  this.ytplayer.pauseVideo();
+};
 videojs.Youtube.prototype.paused = function(){
   return this.lastState !== YT.PlayerState.PLAYING &&
          this.lastState !== YT.PlayerState.BUFFERING;
@@ -217,6 +219,11 @@ videojs.Youtube.prototype.onReady = function(){
   
   
   this.isReady_ = true;
+  
+  this.ytplayer.addEventListener('onStateChange', function(e) {
+    e.target.vjsTech.onStateChange(e.data);
+  });
+  
   this.player_.trigger('techready');
 
   // Hide the poster when ready because YouTube has it's own
@@ -230,18 +237,24 @@ videojs.Youtube.prototype.onReady = function(){
     this.ytplayer.playVideo();
   }
   
-   this.stashedControls = this.player_.options().controls;
+  this.stashedControls = this.player_.controls();
     
-   
-  /*if (this.player_.options().ytcontrols){
+  
+  if (this.player_.options().ytcontrols){
     // Hide the VideoJS controls
-    var p_options = this.player_.options();
-    p_options.controls = false;
-    this.player_.options({controls: false});
-  }*/
+    //var p_options = this.player_.options();
+    //p_options.controls = false;
+    //this.player_.options(p_options);
+    this.player_.controls(false);
+    //this.player_.options({controls: false});
+  } else{
+    
+    this.player_.controls(true);
+  }
 };
 
 videojs.Youtube.prototype.onStateChange = function(state){
+  
   if (state != this.lastState){
     switch(state){
       case -1:
@@ -261,6 +274,7 @@ videojs.Youtube.prototype.onStateChange = function(state){
         this.player_.trigger('durationchange');
         this.player_.trigger('playing');
         this.player_.trigger('play');
+        
         break;
 
       case YT.PlayerState.PAUSED:
@@ -345,7 +359,10 @@ videojs.Youtube.prototype.loadYoutube = function(){
   this.ytplayer = new YT.Player(this.id_, {
     events: {
       onReady: function(e) { e.target.vjsTech.onReady(); },
-      onStateChange: function(e) { e.target.vjsTech.onStateChange(e.data); },
+      /*onStateChange: function(e) {
+         
+         e.target.vjsTech.onStateChange(e.data); 
+      },*/
       onPlaybackQualityChange: function(e){ e.target.vjsTech.onPlaybackQualityChange(e.data); },
       onError: function(e){ e.target.vjsTech.onError(e.data); }
     }
