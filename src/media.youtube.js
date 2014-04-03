@@ -12,93 +12,22 @@
 videojs.Youtube = videojs.MediaTechController.extend({
   init: function(player, options, ready){
     
-    var source, match;
-    var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/; // Regex that parse the video ID for any YouTube URL
-    
     videojs.MediaTechController.call(this, player, options, ready);
-    
        
     this.features.fullscreenResize = true;
     this.player_ = player;
     this.player_el_ = document.getElementById(this.player_.id());
-
-    source = options.source;
-       
-    
-    this.videoId = videojs.Youtube.getIdByUrl(source.src) || '';
-    
-    if ((vjs.IS_IOS || vjs.IS_ANDROID)){
-      this.player_.options({ytcontrols: true});
-    }
-    
-    /*try{
-      match = source.src.match(regExp);
-    }catch(err){
-    
-    }
-    if (match && match[2].length == 11){
-      this.videoId = match[2];
-
-      // Show the YouTube poster only if we don't use YouTube poster (otherwise the controls pop, it's not nice)
-      if (!this.player_.options().ytcontrols){
-        this.player_.poster('http://img.youtube.com/vi/' + this.videoId + '/0.jpg');
-
-        // Cover the entire iframe to have the same poster than YouTube
-        // Doesn't exist right away because the DOM hasn't created it
-        var self = this;
-        setTimeout(function(){ self.player_.posterImage.el().style.backgroundSize = 'cover'; }, 50);
-      }
-    } else {
-      this.videoId = '';
-    }*/
-
+    this.videoId = videojs.Youtube.getIdByUrl(options.source.src) || '';
+    this.player_.options({ytcontrols: true});
     this.id_ = this.player_.id() + '_youtube_api';
 
-    this.el_ = videojs.Component.prototype.createEl('iframe', {
+    this.el_ = videojs.Component.prototype.createEl('div', {
       id: this.id_,
-      className: 'vjs-tech',
-      scrolling: 'no',
-      marginWidth: 0,
-      marginHeight: 0,
-      frameBorder: 0,
-      webkitAllowFullScreen: '',
-      mozallowfullscreen: '',
-      allowFullScreen: ''
+      className: 'vjs-tech'
     });
     
     this.player_el_.insertBefore(this.el_, this.player_el_.firstChild);
     
-    var params = {
-      enablejsapi: 1,
-      iv_load_policy: 3,
-      playerapiid: this.id(),
-      disablekb: 1,
-      wmode: 'transparent',
-      controls: (this.player_.options().ytcontrols)?1:0,
-      showinfo: 0,
-      modestbranding: 1,
-      rel: 0,
-      autoplay: (this.player_.options().autoplay)?1:0,
-      loop: (this.player_.options().loop)?1:0
-    };
-    
-    // Check if we have a playlist
-    /*var regExp = /[?&]list=([^#\&\?]+)/;
-    try{
-    var match = player.options().src.match(regExp);
-    }catch(err){}
-    
-    if (match != null && match.length > 1) {
-      params.list = match[1];
-    }*/
-    
-    // If we are not on a server, don't specify the origin (it will crash)
-    if (window.location.protocol != 'file:') {
-      params.origin = window.location.origin;
-    }
-
-    this.el_.src = 'https://www.youtube.com/embed/' + this.videoId + '?' + videojs.Youtube.makeQueryString(params);
-
     if (this.player_.options().ytcontrols){
       // Hide the big play button when using YouTube controls
       // Doesn't exist right away because the DOM hasn't created it
@@ -119,12 +48,22 @@ videojs.Youtube = videojs.MediaTechController.extend({
         var firstScriptTag = document.getElementsByTagName('script')[0];
         firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
         videojs.Youtube.apiLoading = true;
+        
       }
     }
-    
-    
   }
 });
+
+// Called when YouTube API is ready to be used
+function onYouTubeIframeAPIReady(){
+
+  var yt;
+  while ((yt = videojs.Youtube.loadingQueue.shift())){
+    yt.loadYoutube();
+  }
+  videojs.Youtube.loadingQueue = [];
+  videojs.Youtube.apiReady = true;
+};
 
 videojs.Youtube.prototype.dispose = function(){
   
@@ -159,23 +98,34 @@ videojs.Youtube.prototype.play = function(){
   }
 };
 
+
 videojs.Youtube.prototype.pause = function(){
-  
   this.ytplayer.pauseVideo();
 };
+
+
 videojs.Youtube.prototype.paused = function(){
   return this.lastState !== YT.PlayerState.PLAYING &&
          this.lastState !== YT.PlayerState.BUFFERING;
 };
 
-videojs.Youtube.prototype.currentTime = function(){ return this.ytplayer.getCurrentTime(); };
+
+videojs.Youtube.prototype.currentTime = function(){
+  return this.ytplayer.getCurrentTime();
+};
+
 
 videojs.Youtube.prototype.setCurrentTime = function(seconds){
   this.ytplayer.seekTo(seconds, true);
   this.player_.trigger('timeupdate');
 };
 
-videojs.Youtube.prototype.duration = function(){ return this.ytplayer.getDuration(); };
+
+videojs.Youtube.prototype.duration = function(){
+  return this.ytplayer.getDuration();
+};
+
+
 videojs.Youtube.prototype.buffered = function(){
   var loadedBytes = this.ytplayer.getVideoBytesLoaded();
   var totalBytes = this.ytplayer.getVideoBytesTotal();
@@ -187,6 +137,7 @@ videojs.Youtube.prototype.buffered = function(){
   return videojs.createTimeRange(secondsOffset, secondsOffset + secondsBuffered);
 };
 
+
 videojs.Youtube.prototype.volume = function() { 
   if (isNaN(this.volumeVal)) {
     this.volumeVal = this.ytplayer.getVolume() / 100.0;
@@ -195,6 +146,7 @@ videojs.Youtube.prototype.volume = function() {
   return this.volumeVal;
 };
 
+
 videojs.Youtube.prototype.setVolume = function(percentAsDecimal){
   if (percentAsDecimal && percentAsDecimal != this.volumeVal) {
     this.ytplayer.setVolume(percentAsDecimal * 100.0); 
@@ -202,6 +154,7 @@ videojs.Youtube.prototype.setVolume = function(percentAsDecimal){
     this.player_.trigger('volumechange');
   }
 };
+
 
 videojs.Youtube.prototype.muted = function() { return this.ytplayer.isMuted(); };
 videojs.Youtube.prototype.setMuted = function(muted) { 
@@ -215,8 +168,8 @@ videojs.Youtube.prototype.setMuted = function(muted) {
   setTimeout(function() { self.player_.trigger('volumechange'); }, 50);
 };
 
+
 videojs.Youtube.prototype.onReady = function(){
-  
   
   this.isReady_ = true;
   
@@ -237,21 +190,14 @@ videojs.Youtube.prototype.onReady = function(){
     this.ytplayer.playVideo();
   }
   
-  this.stashedControls = this.player_.controls();
-    
-  
   if (this.player_.options().ytcontrols){
     // Hide the VideoJS controls
-    //var p_options = this.player_.options();
-    //p_options.controls = false;
-    //this.player_.options(p_options);
     this.player_.controls(false);
-    //this.player_.options({controls: false});
   } else{
-    
     this.player_.controls(true);
   }
 };
+
 
 videojs.Youtube.prototype.onStateChange = function(state){
   
@@ -297,6 +243,7 @@ videojs.Youtube.prototype.onStateChange = function(state){
   }
 };
 
+
 videojs.Youtube.prototype.onPlaybackQualityChange = function(quality){
   switch(quality){
     case 'medium':
@@ -338,48 +285,58 @@ videojs.Youtube.prototype.onPlaybackQualityChange = function(quality){
   this.player_.trigger('ratechange');
 };
 
+
 videojs.Youtube.prototype.onError = function(error){
   this.player_.error = error;
   this.player_.trigger('error');
 };
 
+
 videojs.Youtube.isSupported = function(){
   return true;
 };
 
+
 videojs.Youtube.canPlaySource = function(srcObj){
   return (srcObj.type == 'video/youtube');
 };
+
 
 // All videos created before YouTube API is loaded
 videojs.Youtube.loadingQueue = [];
 
 // Create the YouTube player
 videojs.Youtube.prototype.loadYoutube = function(){
+  
   this.ytplayer = new YT.Player(this.id_, {
+    videoId: this.videoId,
+    playerVars: {
+      iv_load_policy: 3,
+      playerapiid: this.id(),
+      controls: (this.player_.options().ytcontrols)?1:0,
+      showinfo: 0,
+      modestbranding: 1,
+      rel: 0,
+      autoplay: (this.player_.options().autoplay)?1:0,
+      loop: (this.player_.options().loop)?1:0
+    },
     events: {
-      onReady: function(e) { e.target.vjsTech.onReady(); },
-      /*onStateChange: function(e) {
-         
-         e.target.vjsTech.onStateChange(e.data); 
-      },*/
-      onPlaybackQualityChange: function(e){ e.target.vjsTech.onPlaybackQualityChange(e.data); },
-      onError: function(e){ e.target.vjsTech.onError(e.data); }
+      onReady: function(e) { 
+         e.target.vjsTech.onReady();
+      },
+      onStateChange: function(e) {
+         //e.target.vjsTech.onStateChange(e.data); 
+      },
+      onPlaybackQualityChange: function(e){
+        e.target.vjsTech.onPlaybackQualityChange(e.data);
+      },
+      onError: function(e){
+        e.target.vjsTech.onError(e.data);
+      }
     }
   });
 
   this.ytplayer.vjsTech = this;
-};
-
-videojs.Youtube.makeQueryString = function(args){
-  var array = [];
-  for (var key in args){
-    if (args.hasOwnProperty(key)){
-      array.push(encodeURIComponent(key) + '=' + encodeURIComponent(args[key]));
-    }
-  }
-
-  return array.join('&');
 };
 
 
@@ -398,13 +355,4 @@ videojs.Youtube.getIdByUrl = function (url){
    return id;
 };
 
-// Called when YouTube API is ready to be used
-window.onYouTubeIframeAPIReady = function(){
 
-  var yt;
-  while ((yt = videojs.Youtube.loadingQueue.shift())){
-    yt.loadYoutube();
-  }
-  videojs.Youtube.loadingQueue = [];
-  videojs.Youtube.apiReady = true;
-};
